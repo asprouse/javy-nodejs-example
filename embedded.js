@@ -43,7 +43,12 @@ function readInput() {
     { bufferOffset: 0, finalBuffer: new Uint8Array(totalBytes) },
   );
 
-  return JSON.parse(new TextDecoder().decode(finalBuffer));
+  const maybeJson = new TextDecoder().decode(finalBuffer);
+  try {
+    return JSON.parse(maybeJson);
+  } catch {
+    return;
+  }
 }
 
 // Write output to stdout
