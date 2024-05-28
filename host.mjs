@@ -58,7 +58,7 @@ async function run(wasmFilePath, input) {
     const instance = await WebAssembly.instantiate(embeddedModule, {
       javy_quickjs_provider_v1: providerInstance.exports,
     });
-    const _start = instance.exports._start;
+    const {_start} = instance.exports;
 
     // Hack to add the memory export from the provider module
     Object.defineProperty(instance, "exports", {
