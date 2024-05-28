@@ -40,11 +40,11 @@ async function run(wasmFilePath, input) {
     });
 
     const wasm = await WebAssembly.compile(
-      await readFile(new URL(wasmFilePath, import.meta.url)),
+        await readFile(new URL(wasmFilePath, import.meta.url)),
     );
     const instance = await WebAssembly.instantiate(
-      wasm,
-      wasi.getImportObject(),
+        wasm,
+        wasi.getImportObject(),
     );
 
     // 👋 send data to the WASM program
@@ -62,6 +62,12 @@ async function run(wasmFilePath, input) {
     }
 
     return out;
+  } catch (e) {
+    const errorMessage = await readOutput(stderrFilePath);
+    if (errorMessage) {
+      throw new Error(errorMessage);
+    }
+
   } finally {
     await Promise.all([
       stdinFile.close(),
@@ -75,5 +81,5 @@ try {
   const result = await run("./embedded.wasm", { n: 100 });
   console.log("Success!", JSON.stringify(result, null, 2));
 } catch (e) {
-  console.log("Error", e);
+  console.log(e);
 }
