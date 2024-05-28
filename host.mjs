@@ -42,20 +42,32 @@ async function run(wasmFilePath, input) {
       returnOnExit: true,
     });
 
-    const wasm = await WebAssembly.compile(
+    const embeddedModule = await WebAssembly.compile(
       await readFile(new URL(wasmFilePath, import.meta.url)),
     );
 
-    const provider = await WebAssembly.compile(
+    const providerModule = await WebAssembly.compile(
       await readFile(new URL("./provider.wasm", import.meta.url)),
     );
 
-    const wasiImports = wasi.getImportObject();
-    const providerInstance = await WebAssembly.instantiate(provider, wasiImports);
+    const providerInstance = await WebAssembly.instantiate(
+      providerModule,
+      wasi.getImportObject(),
+    );
 
-    const instance = await WebAssembly.instantiate(wasm, {
-      ...wasiImports,
+    const instance = await WebAssembly.instantiate(embeddedModule, {
       javy_quickjs_provider_v1: providerInstance.exports,
+    });
+    const _start = instance.exports._start;
+
+    // Hack to add the memory export from the provider module
+    Object.defineProperty(instance, "exports", {
+      get() {
+        return {
+          _start,
+          memory: providerInstance.exports.memory,
+        };
+      },
     });
 
     wasi.start(instance);
