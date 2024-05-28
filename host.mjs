@@ -1,4 +1,4 @@
-import { readFile, open } from "node:fs/promises";
+import { readFile, writeFile, open } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { WASI } from "wasi";
@@ -22,8 +22,11 @@ async function run(wasmFilePath, input) {
   const stdoutFilePath = join(workDir, `stdout.wasm.${uniqueId}.txt`);
   const stderrFilePath = join(workDir, `stderr.wasm.${uniqueId}.txt`);
 
+  // 👋 send data to the WASM program
+  await writeFile(stdinFilePath, JSON.stringify(input), { encoding: "utf8" });
+
   const [stdinFile, stdoutFile, stderrFile] = await Promise.all([
-    open(stdinFilePath, "a+"),
+    open(stdinFilePath, "r"),
     open(stdoutFilePath, "a"),
     open(stderrFilePath, "a"),
   ]);
@@ -40,15 +43,12 @@ async function run(wasmFilePath, input) {
     });
 
     const wasm = await WebAssembly.compile(
-        await readFile(new URL(wasmFilePath, import.meta.url)),
+      await readFile(new URL(wasmFilePath, import.meta.url)),
     );
     const instance = await WebAssembly.instantiate(
-        wasm,
-        wasi.getImportObject(),
+      wasm,
+      wasi.getImportObject(),
     );
-
-    // 👋 send data to the WASM program
-    await stdinFile.writeFile(JSON.stringify(input));
 
     wasi.start(instance);
 
@@ -67,7 +67,6 @@ async function run(wasmFilePath, input) {
     if (errorMessage) {
       throw new Error(errorMessage);
     }
-
   } finally {
     await Promise.all([
       stdinFile.close(),
