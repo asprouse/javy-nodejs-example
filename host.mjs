@@ -45,10 +45,18 @@ async function run(wasmFilePath, input) {
     const wasm = await WebAssembly.compile(
       await readFile(new URL(wasmFilePath, import.meta.url)),
     );
-    const instance = await WebAssembly.instantiate(
-      wasm,
-      wasi.getImportObject(),
+
+    const provider = await WebAssembly.compile(
+      await readFile(new URL("./provider.wasm", import.meta.url)),
     );
+
+    const wasiImports = wasi.getImportObject();
+    const providerInstance = await WebAssembly.instantiate(provider, wasiImports);
+
+    const instance = await WebAssembly.instantiate(wasm, {
+      ...wasiImports,
+      javy_quickjs_provider_v1: providerInstance.exports,
+    });
 
     wasi.start(instance);
 
@@ -63,9 +71,13 @@ async function run(wasmFilePath, input) {
 
     return out;
   } catch (e) {
-    const errorMessage = await readOutput(stderrFilePath);
-    if (errorMessage) {
-      throw new Error(errorMessage);
+    if (e instanceof WebAssembly.RuntimeError) {
+      const errorMessage = await readOutput(stderrFilePath);
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
+    } else {
+      throw e;
     }
   } finally {
     await Promise.all([

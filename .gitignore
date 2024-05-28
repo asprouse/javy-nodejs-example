@@ -1,3 +1,4 @@
 .idea
 node_modules
 embedded.wasm
+provider.wasm
