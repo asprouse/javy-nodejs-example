@@ -5,7 +5,7 @@
   "main": "host.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "javy compile embedded.js -o embedded.wasm",
+    "build": "javy emit-provider -o provider.wasm && javy compile embedded.js -d -o embedded.wasm",
     "start": "node --no-warnings=ExperimentalWarning host.mjs"
   },
   "author": "",

@@ -42,15 +42,26 @@ async function run(wasmFilePath, input) {
       returnOnExit: true,
     });
 
-    const wasm = await WebAssembly.compile(
+    const embeddedModule = await WebAssembly.compile(
       await readFile(new URL(wasmFilePath, import.meta.url)),
     );
-    const instance = await WebAssembly.instantiate(
-      wasm,
+
+    const providerModule = await WebAssembly.compile(
+      await readFile(new URL("./provider.wasm", import.meta.url)),
+    );
+
+    const providerInstance = await WebAssembly.instantiate(
+      providerModule,
       wasi.getImportObject(),
     );
 
-    wasi.start(instance);
+    const instance = await WebAssembly.instantiate(embeddedModule, {
+      javy_quickjs_provider_v1: providerInstance.exports,
+    });
+
+    // Javy provider is a WASI reactor see https://github.com/WebAssembly/WASI/blob/main/legacy/application-abi.md?plain=1
+    wasi.initialize(providerInstance);
+    instance.exports._start();
 
     const [out, err] = await Promise.all([
       readOutput(stdoutFilePath),
@@ -63,9 +74,13 @@ async function run(wasmFilePath, input) {
 
     return out;
   } catch (e) {
-    const errorMessage = await readOutput(stderrFilePath);
-    if (errorMessage) {
-      throw new Error(errorMessage);
+    if (e instanceof WebAssembly.RuntimeError) {
+      const errorMessage = await readOutput(stderrFilePath);
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
+    } else {
+      throw e;
     }
   } finally {
     await Promise.all([
