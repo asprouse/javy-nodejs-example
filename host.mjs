@@ -58,19 +58,10 @@ async function run(wasmFilePath, input) {
     const instance = await WebAssembly.instantiate(embeddedModule, {
       javy_quickjs_provider_v1: providerInstance.exports,
     });
-    const {_start} = instance.exports;
 
-    // Hack to add the memory export from the provider module
-    Object.defineProperty(instance, "exports", {
-      get() {
-        return {
-          _start,
-          memory: providerInstance.exports.memory,
-        };
-      },
-    });
-
-    wasi.start(instance);
+    // Javy provider is a WASI reactor see https://github.com/WebAssembly/WASI/blob/main/legacy/application-abi.md?plain=1
+    wasi.initialize(providerInstance);
+    instance.exports._start();
 
     const [out, err] = await Promise.all([
       readOutput(stdoutFilePath),
