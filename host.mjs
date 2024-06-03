@@ -3,16 +3,23 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { WASI } from "wasi";
 
-async function readOutput(filePath) {
-  const str = (await readFile(filePath, "utf8")).trim();
-  try {
-    return JSON.parse(str);
-  } catch {
-    return str;
-  }
+try {
+  const [embeddedModule, providerModule] = await Promise.all([
+    compileModule("./embedded.wasm"),
+    compileModule("./provider.wasm"),
+  ]);
+  const result = await runJavy(providerModule, embeddedModule, { n: 100 });
+  console.log("Success!", JSON.stringify(result, null, 2));
+} catch (e) {
+  console.log(e);
 }
 
-async function run(wasmFilePath, input) {
+async function compileModule(wasmPath) {
+  const bytes = await readFile(new URL(wasmPath, import.meta.url));
+  return WebAssembly.compile(bytes);
+}
+
+async function runJavy(providerModule, embeddedModule, input) {
   const uniqueId = crypto.randomUUID();
 
   // Use stdin/stdout/stderr to communicate with WASM process
@@ -42,19 +49,10 @@ async function run(wasmFilePath, input) {
       returnOnExit: true,
     });
 
-    const embeddedModule = await WebAssembly.compile(
-      await readFile(new URL(wasmFilePath, import.meta.url)),
-    );
-
-    const providerModule = await WebAssembly.compile(
-      await readFile(new URL("./provider.wasm", import.meta.url)),
-    );
-
     const providerInstance = await WebAssembly.instantiate(
       providerModule,
       wasi.getImportObject(),
     );
-
     const instance = await WebAssembly.instantiate(embeddedModule, {
       javy_quickjs_provider_v1: providerInstance.exports,
     });
@@ -79,9 +77,8 @@ async function run(wasmFilePath, input) {
       if (errorMessage) {
         throw new Error(errorMessage);
       }
-    } else {
-      throw e;
     }
+    throw e;
   } finally {
     await Promise.all([
       stdinFile.close(),
@@ -91,9 +88,11 @@ async function run(wasmFilePath, input) {
   }
 }
 
-try {
-  const result = await run("./embedded.wasm", { n: 100 });
-  console.log("Success!", JSON.stringify(result, null, 2));
-} catch (e) {
-  console.log(e);
+async function readOutput(filePath) {
+  const str = (await readFile(filePath, "utf8")).trim();
+  try {
+    return JSON.parse(str);
+  } catch {
+    return str;
+  }
 }
